@@ -8,13 +8,31 @@ PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BUCKET = {{ cookiecutter.s3_bucket }}
 PROFILE = {{ cookiecutter.aws_profile }}
 PROJECT_NAME = {{ cookiecutter.repo_name }}
+ENV_NAME = {{ cookiecutter.repo_name }}
 PYTHON_INTERPRETER = {{ cookiecutter.python_interpreter }}
+PYTHON_INTERPRETER_PATH = $(shell which $(PYTHON_INTERPRETER))
 
 ifeq (,$(shell which conda))
 HAS_CONDA=False
 else
 HAS_CONDA=True
 endif
+
+ifeq (,$(shell which virtualenv))
+HAS_VIRTUALENV=False
+else
+HAS_VIRTUALENV=True
+VIRTUALENV_PATH =$(shell which virtualenv)
+endif
+
+ifeq (,$(shell test -f "$$VIRTUALENVWRAPPER_SCRIPT" && echo "script exists"))
+HAS_VIRTUALENVWRAPPER=False
+else
+HAS_VIRTUALENVWRAPPER=True
+VIRTUALENVWRAPPER_PATH=$$VIRTUALENVWRAPPER_SCRIPT
+endif
+
+#$(info HAS_VIRTUALENVWRAPPER is $(HAS_VIRTUALENVWRAPPER))
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -63,18 +81,35 @@ ifeq (3,$(findstring 3,$(PYTHON_INTERPRETER)))
 else
 	conda create --name $(PROJECT_NAME) python=2.7
 endif
-		@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
+	@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
+else ifeq (True, $(HAS_VIRTUALENV))
+	@echo "virtualenv is installed. Location: $(VIRTUALENV_PATH)"
+ifeq (True, $(HAS_VIRTUALENVWRAPPER))
+	@echo "virtualenvwrapper is installed. Location: $(VIRTUALENVWRAPPER_PATH)"
+	@bash -c "source $(VIRTUALENVWRAPPER_PATH);mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER_PATH)"
+	@echo ">>> New virtualenv created. Activate with:"
+	@echo "workon $(PROJECT_NAME)"
+else
+	@echo "does not have virtualenvwrapper"
+	$(PYTHON_INTERPRETER) -m pip install -q virtualenvwrapper
+	@echo ">>> Installing virtualenvwrapper if not already installed.\nMake sure the following lines are in shell startup file\n\
+	export WORKON_HOME=$$HOME/.virtualenvs\nexport PROJECT_HOME=$$HOME/Devel\nsource /usr/local/bin/virtualenvwrapper.sh\n"
+	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER_PATH)"
+	@echo ">>> New virtualenv created. Activate with:"
+	@echo "workon $(PROJECT_NAME)"
+endif
 else
 	$(PYTHON_INTERPRETER) -m pip install -q virtualenv virtualenvwrapper
 	@echo ">>> Installing virtualenvwrapper if not already installed.\nMake sure the following lines are in shell startup file\n\
 	export WORKON_HOME=$$HOME/.virtualenvs\nexport PROJECT_HOME=$$HOME/Devel\nsource /usr/local/bin/virtualenvwrapper.sh\n"
-	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER)"
-	@echo ">>> New virtualenv created. Activate with:\nworkon $(PROJECT_NAME)"
+	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER_PATH)"
+	@echo ">>> New virtualenv created. Activate with:"
+	@echo "workon $(PROJECT_NAME)"
 endif
 
 ## Test python environment is setup correctly
 test_environment:
-	$(PYTHON_INTERPRETER) test_environment.py
+	$(PYTHON_INTERPRETER_PATH) test_environment.py
 
 #################################################################################
 # PROJECT RULES                                                                 #
